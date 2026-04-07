@@ -50,3 +50,41 @@ class BaseTask(ABC):
     def get_question(self) -> str:
         """Return the business question for this task."""
         return self.question
+
+
+# ---------------------------------------------------------------------------
+# Task registry and router
+# ---------------------------------------------------------------------------
+
+def get_task_by_id(task_id: str) -> BaseTask:
+    """Load and return the correct task instance by task_id.
+    
+    Parameters
+    ----------
+    task_id : str
+        One of: "sales_summary", "churn_analysis", "root_cause"
+    
+    Returns
+    -------
+    BaseTask
+        An instance of the corresponding task class.
+    
+    Raises
+    ------
+    ValueError
+        If task_id is not recognised.
+    """
+    if task_id == "sales_summary":
+        from tasks.task_easy import SalesSummaryTask
+        return SalesSummaryTask()
+    elif task_id == "churn_analysis":
+        from tasks.task_medium import ChurnAnalysisTask
+        return ChurnAnalysisTask()
+    elif task_id == "root_cause":
+        from tasks.task_hard import RootCauseTask
+        return RootCauseTask()
+    else:
+        raise ValueError(
+            f"Unknown task_id '{task_id}'. "
+            f"Available: sales_summary, churn_analysis, root_cause"
+        )

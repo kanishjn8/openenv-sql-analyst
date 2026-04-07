@@ -1,0 +1,34 @@
+name: sql-analyst
+version: 1.0.0
+author: team
+description: >
+  An OpenEnv environment where an AI agent answers business questions
+  by writing SQL queries against a simulated e-commerce database.
+  Tasks range from simple aggregations to multi-step root cause analysis.
+
+tasks:
+  - id: sales_summary
+    difficulty: easy
+    description: Compute Q4 revenue and identify top region
+  - id: churn_analysis
+    difficulty: medium
+    description: Identify churned high-value customers
+  - id: root_cause
+    difficulty: hard
+    description: Investigate a revenue drop and explain the cause
+
+observation_space:
+  schema_description: str
+  question: str
+  query_history: list
+  last_result: object
+  steps_taken: int
+  max_steps: int
+
+action_space:
+  action_type: query | answer
+  sql: str (optional)
+  final_answer: str (optional)
+
+reward_range: [0.0, 1.0]
+episode_termination: final answer submitted or max_steps reached
