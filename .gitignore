@@ -1,0 +1,28 @@
+# .gitignore for openenv-sql-analyst
+
+# Generated database (rebuilt by seed.py)
+data/analyst.db
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.mypy_cache/
+.pytest_cache/
+
+# Virtual environments
+.venv/
+venv/
+
+# uv
+.python-version
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db

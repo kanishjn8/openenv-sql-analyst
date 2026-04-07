@@ -1,0 +1,5 @@
+# requirements.txt — Python dependencies (Person A)
+# For use with pip inside Docker. For local dev, prefer `uv sync`.
+pydantic>=2.0
+fastapi>=0.110
+uvicorn>=0.29
