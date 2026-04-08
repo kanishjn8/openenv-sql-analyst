@@ -26,7 +26,9 @@ from __future__ import annotations
 
 import os
 import re
+import subprocess
 from dataclasses import dataclass
+from pathlib import Path
 from typing import List, Optional, Tuple
 
 from openai import OpenAI
@@ -167,7 +169,16 @@ def main() -> None:
 
     # LOCAL_IMAGE_NAME is intentionally declared for template compatibility.
     _ = LOCAL_IMAGE_NAME
-    env = SQLAnalystEnv(db_path="data/analyst.db", max_steps=MAX_STEPS)
+
+    # Evaluators may run inference.py in a fresh workspace where the DB isn't prebuilt.
+    db_path = Path("data") / "analyst.db"
+    if not db_path.exists():
+        try:
+            subprocess.run(["python", "data/seed.py"], check=True, capture_output=True, text=True)
+        except Exception as exc:
+            raise SystemExit(f"Failed to create database at {db_path}: {exc}")
+
+    env = SQLAnalystEnv(db_path=str(db_path), max_steps=MAX_STEPS)
 
     rewards: List[float] = []
     steps_taken = 0
