@@ -21,4 +21,4 @@ RUN python data/seed.py
 EXPOSE 7860
 
 # Start the FastAPI server via uvicorn
-CMD ["uvicorn", "server.app:app", "--host", "0.0.0.0", "--port", "7860"]
+CMD ["uvicorn", "server:app", "--host", "0.0.0.0", "--port", "7860"]
