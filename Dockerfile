@@ -21,4 +21,6 @@ RUN python data/seed.py
 EXPOSE 7860
 
 # Start the FastAPI server via uvicorn
-CMD ["uvicorn", "server:app", "--host", "0.0.0.0", "--port", "7860"]
+# Note: the repo has both a `server.py` module and a `server/` package.
+# Use `server.py` explicitly to avoid import ambiguity.
+CMD ["uvicorn", "server.py:app", "--host", "0.0.0.0", "--port", "7860"]
