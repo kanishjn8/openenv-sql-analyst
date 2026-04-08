@@ -13,9 +13,8 @@ An OpenEnv environment where an AI agent answers business questions by writing S
 5. [Observation and Action Space](#observation-and-action-space)
 6. [Reward Function](#reward-function)
 7. [Running the Baseline Agent](#running-the-baseline-agent)
-8. [Submission Files](#submission-files)
-9. [Docker](#docker)
-10. [API Endpoints](#api-endpoints)
+8. [Docker](#docker)
+9. [API Endpoints](#api-endpoints)
 
 ---
 
@@ -49,6 +48,21 @@ The environment contains:
 
 - Python 3.9+
 - pip or uv package manager
+
+### Environment variables (.env)
+
+This repo includes a `.env.example` file with the required variables for the competition `inference.py` contract:
+
+- `API_BASE_URL`
+- `MODEL_NAME`
+- `HF_TOKEN`
+- `LOCAL_IMAGE_NAME`
+
+Copy it locally (do not commit secrets):
+
+```bash
+cp .env.example .env
+```
 
 ### Step 1: Clone the Repository
 
@@ -381,43 +395,6 @@ Be efficient. You have at most 10 actions. Think before querying.
 
 ---
 
-## Submission Files
-
-The repository includes submission-oriented entrypoints in the project root:
-
-- `inference.py` — OpenAI-client inference script (OpenEnv-style stdout contract)
-- `setup_validate.sh` — wrapper that runs `scripts/validate-submission.sh`
-
-### Inference Environment Variables
-
-Set these before running `inference.py`:
-
-```bash
-export HF_TOKEN="..."                 # or API_KEY / OPENAI_API_KEY
-export API_BASE_URL="https://router.huggingface.co/v1"
-export MODEL_NAME="gpt-4o-mini"
-export LOCAL_IMAGE_NAME="optional"
-```
-
-Run:
-
-```bash
-python inference.py
-```
-
-### Pre-Submission Validation
-
-```bash
-./setup_validate.sh https://<your-space>.hf.space
-```
-
-### Note on HF Startup Logs
-
-A startup log entry like `GET /?logs=container 404` is expected and non-fatal; it comes
-from log streaming probes and does not indicate your `/health` or `/reset` endpoints failed.
-
----
-
 ## Docker
 
 Build a self-contained container image:
@@ -442,6 +419,21 @@ The container automatically:
 ```bash
 curl http://localhost:7860/health
 # {"status": "ok"}
+```
+
+---
+
+## Submission validation
+
+This repo includes `scripts/validate-submission.sh`, which runs the common submission checks:
+
+- Ping your deployed HF Space (`/health` then `/reset`)
+- Build the Docker image locally
+- Run `openenv validate` (requires `openenv-core`)
+
+```bash
+chmod +x scripts/validate-submission.sh
+./scripts/validate-submission.sh https://your-space.hf.space
 ```
 
 ---

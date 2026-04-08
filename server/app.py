@@ -5,7 +5,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any
 
-from fastapi import FastAPI, HTTPException
+from fastapi import Body, FastAPI, HTTPException
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 import uvicorn
@@ -25,7 +25,10 @@ _env = SQLAnalystEnv(db_path=str(_DB_PATH), max_steps=10)
 
 
 class ResetRequest(BaseModel):
-    task_id: str
+    # Some evaluators call POST /reset with an empty body.
+    # Defaulting ensures reset still works while preserving compatibility with
+    # explicit task selection.
+    task_id: str = "sales_summary"
 
 
 class StepResponse(BaseModel):
@@ -41,7 +44,7 @@ def health() -> dict[str, str]:
 
 
 @app.post("/reset", response_model=Observation)
-def reset(body: ResetRequest) -> Observation:
+def reset(body: ResetRequest = Body(default_factory=ResetRequest)) -> Observation:
     try:
         return _env.reset(body.task_id)
     except ValueError as exc:
