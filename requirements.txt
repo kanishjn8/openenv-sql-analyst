@@ -8,3 +8,6 @@ pydantic>=2.0
 fastapi>=0.110
 uvicorn>=0.29
 
+# Required by OpenEnv validators for "multi-mode deployment" checks.
+openenv-core>=0.2.0
+
