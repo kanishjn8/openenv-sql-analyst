@@ -1,13 +1,13 @@
 """
-baseline/run_baseline.py — LLM agent baseline (Person B)
+baseline/run_baseline.py — LLM agent baseline
 
 Runs an agent loop that solves all three tasks by:
 1. Querying the database with SQL
 2. Submitting final answers when ready
 
-The LLM is selected based on available API keys:
-  - ANTHROPIC_API_KEY → claude-3-5-haiku-20241022
-  - OPENAI_API_KEY → gpt-4o-mini
+The LLM is selected in this priority order:
+    - ANTHROPIC_API_KEY → claude-3-5-haiku-20241022
+    - OPENAI_API_KEY → gpt-4o-mini
 """
 
 from __future__ import annotations
@@ -23,6 +23,27 @@ from env.models import Action
 
 # Set seed for reproducibility
 random.seed(42)
+
+FORMAT_REMINDER = (
+    "Respond with exactly one block:\n"
+    "ACTION: query\n"
+    "SQL: <single SELECT query>\n\n"
+    "OR\n\n"
+    "ACTION: answer\n"
+    "ANSWER: <final answer text>"
+)
+
+
+COMPACT_SCHEMA_REMINDER = """Schema refresher (SQLite):
+- customers(customer_id, name, email, signup_date, region)
+- products(product_id, name, category, price)
+- orders(order_id, customer_id, order_date, total_amount, status)
+- order_items(order_item_id, order_id, product_id, quantity, unit_price)
+
+Common joins:
+- orders.customer_id = customers.customer_id
+- order_items.order_id = orders.order_id
+- order_items.product_id = products.product_id"""
 
 # ---------------------------------------------------------------------------
 # API Detection and Client Setup
@@ -42,6 +63,7 @@ def get_api_client() -> tuple[str, object]:
     RuntimeError
         If neither ANTHROPIC_API_KEY nor OPENAI_API_KEY is set.
     """
+    # Priority: Anthropic → OpenAI
     if "ANTHROPIC_API_KEY" in os.environ:
         try:
             import anthropic
@@ -128,26 +150,73 @@ def call_llm(
 # SQL Parsing
 # ---------------------------------------------------------------------------
 
+def _strip_code_fences(text: str) -> str:
+    """Remove markdown code fences while preserving content."""
+    text = re.sub(r"```(?:sql|SQL|json|JSON|text|TEXT)?\n", "", text)
+    text = text.replace("```", "")
+    return text
+
+
+def parse_action(response: str) -> tuple[Optional[str], Optional[str]]:
+    """Parse an LLM response into either (sql, None) or (None, answer)."""
+    if not response:
+        return None, None
+
+    text = _strip_code_fences(response).strip()
+
+    action_match = re.search(r"ACTION:\s*(query|answer)\b", text, flags=re.IGNORECASE)
+    if action_match:
+        action_type = action_match.group(1).lower()
+        if action_type == "query":
+            sql = extract_sql_from_response(text)
+            return sql, None
+        return None, extract_answer_from_response(text)
+
+    sql = extract_sql_from_response(text)
+    if sql:
+        return sql, None
+    ans = extract_answer_from_response(text)
+    if ans:
+        return None, ans
+
+    # Last resort: if response looks like SQL, treat first statement as SQL.
+    if re.search(r"\bselect\b", text, flags=re.IGNORECASE):
+        candidate = text.split(";")[0].strip()
+        if candidate:
+            return candidate + ";", None
+
+    return None, None
+
+
 def extract_sql_from_response(response: str) -> Optional[str]:
     """Extract SQL from ACTION: query blocks."""
-    # Match: SQL: ... followed by newline or end
-    match = re.search(r"SQL:\s*(.+?)(\n|$)", response, re.DOTALL)
+    match = re.search(
+        r"SQL:\s*(.+?)(?:\n\s*(?:ACTION:|ANSWER:)\b|$)",
+        response,
+        re.DOTALL | re.IGNORECASE,
+    )
     if match:
         sql = match.group(1).strip()
-        # Remove trailing markers or partial text
-        sql = re.split(r'(?:ACTION:|ANSWER:)', sql, maxsplit=1)[0].strip()
+        sql = re.split(r"(?:ACTION:|ANSWER:)", sql, maxsplit=1, flags=re.IGNORECASE)[0].strip()
+        # Many models append natural language after SQL. Keep only first statement.
+        if ";" in sql:
+            sql = sql.split(";", 1)[0].strip() + ";"
         return sql if sql else None
     return None
 
 
 def extract_answer_from_response(response: str) -> Optional[str]:
     """Extract final answer from ACTION: answer blocks."""
-    # Match: ANSWER: ... followed by newline or end
-    match = re.search(r"ANSWER:\s*(.+?)(\n|$)", response, re.DOTALL)
+    # Match ANSWER block up to next action marker (or end of response).
+    match = re.search(
+        r"ANSWER:\s*(.+?)(?:\n\s*ACTION:\b|$)",
+        response,
+        re.DOTALL | re.IGNORECASE,
+    )
     if match:
         answer = match.group(1).strip()
         # Remove trailing markers
-        answer = re.split(r'ACTION:', answer, maxsplit=1)[0].strip()
+        answer = re.split(r"ACTION:", answer, maxsplit=1, flags=re.IGNORECASE)[0].strip()
         return answer if answer else None
     return None
 
@@ -175,10 +244,16 @@ def run_task(
     obs = env.reset(task_id)
     
     # Build initial user message
-    user_message = f"{obs.schema_description}\n\n{obs.question}"
+    user_message = (
+        f"{FORMAT_REMINDER}\n\n"
+        "Full schema:\n"
+        f"{obs.schema_description}\n\n"
+        f"Question:\n{obs.question}"
+    )
     
-    conversation_history = []
+    executed_sql_history: list[str] = []
     final_score = 0.0
+    debug = os.environ.get("BASELINE_DEBUG", "").strip().lower() in {"1", "true", "yes", "on"}
     
     while not obs.done:
         # Call LLM
@@ -188,11 +263,19 @@ def run_task(
             print(f"  ⚠️  LLM call failed; trying raw answer")
             response = "I don't have an answer."
         
-        conversation_history.append(response)
-        
-        # Try to extract SQL query
-        sql = extract_sql_from_response(response)
+        if debug:
+            print("    [debug] Raw model response:")
+            for line in response.splitlines():
+                print(f"    [debug] {line}")
+
+        sql, answer = parse_action(response)
+        if debug:
+            print(f"    [debug] Parsed SQL: {repr(sql)}")
+            print(f"    [debug] Parsed ANSWER: {repr(answer)}")
+
+        # Try to execute SQL query
         if sql:
+            executed_sql_history.append(sql.strip())
             # Execute query
             action = Action(action_type="query", sql=sql)
             try:
@@ -200,14 +283,47 @@ def run_task(
                 if reward.sql_valid:
                     print(f"    ✓ Query executed (rows: {reward.result_shape_correct})")
                 else:
-                    print(f"    ✗ Query failed: {reward.reason}")
+                    query_error = obs.last_result.error if obs.last_result else None
+                    if query_error:
+                        print(f"    ✗ Query failed: {query_error}")
+                    else:
+                        print(f"    ✗ Query failed: {reward.reason}")
                 
                 # Update user message with result
                 if obs.last_result:
-                    result_summary = f"Query returned {obs.last_result.row_count} rows."
-                    if obs.last_result.rows:
-                        result_summary += f"\nFirst few rows: {obs.last_result.rows[:2]}"
-                    user_message = result_summary
+                    if obs.last_result.success:
+                        result_summary = f"Query returned {obs.last_result.row_count} rows."
+                        if obs.last_result.rows:
+                            result_summary += f"\nFirst few rows: {obs.last_result.rows[:2]}"
+                    else:
+                        result_summary = (
+                            f"Query failed.\n"
+                            f"SQL: {obs.last_result.sql}\n"
+                            f"Error: {obs.last_result.error}"
+                        )
+                        # Frequent schema confusion in root_cause: orders doesn't have product_id.
+                        if "no such column: orders.product_id" in (obs.last_result.error or ""):
+                            result_summary += (
+                                "\nHint: `orders` has no `product_id`. Join "
+                                "`orders -> order_items -> products` using "
+                                "`orders.order_id = order_items.order_id` and "
+                                "`order_items.product_id = products.product_id`."
+                            )
+                    recent_sql = executed_sql_history[-5:]
+                    recent_sql_block = (
+                        "\n".join(f"- {idx + 1}. {q}" for idx, q in enumerate(recent_sql))
+                        if recent_sql else "- (none)"
+                    )
+                    user_message = (
+                        f"{FORMAT_REMINDER}\n\n"
+                        f"{COMPACT_SCHEMA_REMINDER}\n\n"
+                        f"Question:\n{obs.question}\n\n"
+                        "Previously executed SQL (most recent up to 5):\n"
+                        f"{recent_sql_block}\n\n"
+                        "Do NOT repeat an identical SQL query.\n\n"
+                        f"Previous query result:\n{result_summary}\n\n"
+                        "Now decide next action."
+                    )
                 
                 final_score = reward.score
                 continue
@@ -215,8 +331,7 @@ def run_task(
                 print(f"    ✗ Step failed: {e}")
                 break
         
-        # Try to extract final answer
-        answer = extract_answer_from_response(response)
+        # Try to submit final answer
         if answer:
             # Submit answer
             action = Action(action_type="answer", final_answer=answer)
@@ -232,10 +347,19 @@ def run_task(
         # If neither query nor answer detected, prompt again
         if obs.steps_taken < obs.max_steps:
             print(f"    ⚠️  No SQL or ANSWER block detected; retrying...")
+            recent_sql = executed_sql_history[-5:]
+            recent_sql_block = (
+                "\n".join(f"- {idx + 1}. {q}" for idx, q in enumerate(recent_sql))
+                if recent_sql else "- (none)"
+            )
             user_message = (
-                f"Please provide either a SQL query or a final answer. "
+                f"{FORMAT_REMINDER}\n\n"
+                f"{COMPACT_SCHEMA_REMINDER}\n\n"
                 f"Current step: {obs.steps_taken}/{obs.max_steps}.\n"
-                f"Question: {obs.question}"
+                f"Question: {obs.question}\n\n"
+                "Previously executed SQL (most recent up to 5):\n"
+                f"{recent_sql_block}\n\n"
+                "Do NOT repeat an identical SQL query."
             )
         else:
             print(f"    ✗ Max steps reached without answer")

@@ -1,5 +1,5 @@
 """
-tasks/task_easy.py — Easy task: Q4 2023 sales summary (Person B)
+tasks/task_easy.py — Easy task: Q4 2023 sales summary 
 
 Ground truth extracted from the actual database (analyst.db).
 """

@@ -1,5 +1,5 @@
 """
-env/reward.py — Reward function (Person A)
+env/reward.py — Reward function 
 
 Computes per-step and final rewards according to the scoring rubric.
 
@@ -168,18 +168,22 @@ def _score_answer(
     if eff_penalty > 0:
         reasons.append(f"-{eff_penalty:.2f} efficiency ({n_queries} queries)")
 
-    # Cap the accumulated partial credit at 0.20
-    partial = min(cumulative_partial, 0.20)
-    if partial > 0:
-        reasons.append(f"+{partial:.2f} partial credit (capped)")
+    # Only award accumulated query partial credit if the final answer earns
+    # *some* grader credit. This prevents agents from submitting a completely
+    # unrelated final answer and still receiving a non-zero terminal reward.
+    partial = 0.0
+    if grader_score > 0.0:
+        partial = min(cumulative_partial, 0.20)
+        if partial > 0:
+            reasons.append(f"+{partial:.2f} partial credit (capped)")
 
     score = _clamp(grader_score - eff_penalty + partial)
     reasons.append(f"final={score:.2f}")
 
     return Reward(
         score=score,
-        sql_valid=True,  # N/A for answer, default True
-        result_shape_correct=True,  # N/A
+    sql_valid=True,  # N/A for answer
+    result_shape_correct=True,  # N/A
         answer_correct=answer_correct,
         partial_credit=partial,
         penalty=eff_penalty,

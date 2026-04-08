@@ -2,6 +2,7 @@
 
 # Generated database (rebuilt by seed.py)
 data/analyst.db
+plan.md
 
 # Python
 __pycache__/

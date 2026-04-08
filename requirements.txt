@@ -1,5 +1,10 @@
-# requirements.txt — Python dependencies (Person A)
-# For use with pip inside Docker. For local dev, prefer `uv sync`.
+# requirements.txt — Runtime dependencies
+#
+# This file is used by the Docker image (pip install -r requirements.txt).
+# For local development, prefer `uv sync` (uses `pyproject.toml`).
+#
+# Keep this list runtime-only (no test/dev dependencies).
 pydantic>=2.0
 fastapi>=0.110
 uvicorn>=0.29
+
