@@ -18,7 +18,7 @@ STDOUT contract:
     [END]   success=<true|false> steps=<n> score=<score> rewards=<r1,r2,...,rn>
 
 Notes:
-- This script runs one episode for TASK_NAME.
+- By default this script runs all benchmark tasks (comma-separated via TASK_NAMES).
 - The environment here is the in-process SQL analyst env (not docker).
 """
 
@@ -39,6 +39,7 @@ from env.models import Action
 
 BENCHMARK = os.getenv("BENCHMARK", "openenv-sql-analyst")
 TASK_NAME = os.getenv("TASK_NAME", "sales_summary")
+TASK_NAMES_RAW = os.getenv("TASK_NAMES", "sales_summary,churn_analysis,root_cause")
 MAX_STEPS = int(os.getenv("MAX_STEPS", "10"))
 
 API_BASE_URL = os.getenv("API_BASE_URL", "https://router.huggingface.co/v1")
@@ -47,6 +48,7 @@ API_KEY = os.getenv("HF_TOKEN") or os.getenv("API_KEY") or os.getenv("OPENAI_API
 LOCAL_IMAGE_NAME = os.getenv("LOCAL_IMAGE_NAME", "")
 
 SUCCESS_SCORE_THRESHOLD = float(os.getenv("SUCCESS_SCORE_THRESHOLD", "0.10"))
+EPS = 0.01
 
 
 def log_start(task: str, env: str, model: str) -> None:
@@ -180,94 +182,94 @@ def main() -> None:
 
     env = SQLAnalystEnv(db_path=str(db_path), max_steps=MAX_STEPS)
 
-    rewards: List[float] = []
-    steps_taken = 0
-    success = False
-    score = 0.0
+    task_names = [t.strip() for t in TASK_NAMES_RAW.split(",") if t.strip()] or [TASK_NAME]
 
-    log_start(task=TASK_NAME, env=BENCHMARK, model=MODEL_NAME)
+    for task_name in task_names:
+        rewards: List[float] = []
+        steps_taken = 0
+        success = False
+        score = 0.0
 
-    # Always emit [END], even on exception.
-    try:
-        obs = env.reset(TASK_NAME)
+        log_start(task=task_name, env=BENCHMARK, model=MODEL_NAME)
 
-        user_message = (
-            "Schema:\n"
-            f"{obs.schema_description}\n\n"
-            f"Question:\n{obs.question}\n\n"
-            "Remember: respond with exactly one ACTION block."
-        )
+        # Always emit [END], even on exception.
+        try:
+            obs = env.reset(task_name)
 
-        for step in range(1, MAX_STEPS + 1):
-            if obs.done:
-                break
+            user_message = (
+                "Schema:\n"
+                f"{obs.schema_description}\n\n"
+                f"Question:\n{obs.question}\n\n"
+                "Remember: respond with exactly one ACTION block."
+            )
 
-            try:
-                response = llm_next(client, MODEL_NAME, user_message)
-                sql, answer = parse_action(response)
-
-                if sql:
-                    action = Action(action_type="query", sql=sql)
-                    obs, reward, done, info = env.step(action)
-                    steps_taken = step
-                    rewards.append(float(reward.score))
-                    # Action string should be single-line.
-                    action_str = re.sub(r"\s+", " ", f"query:{sql}").strip()
-                    log_step(step=step, action=action_str, reward=float(reward.score), done=done, error=None)
-
-                    # Short result summary for next prompt.
-                    if obs.last_result and obs.last_result.success:
-                        preview = obs.last_result.rows[:2] if obs.last_result.rows else []
-                        result_summary = f"rows={obs.last_result.row_count} preview={preview}"
-                    elif obs.last_result:
-                        result_summary = f"query_error={obs.last_result.error}"
-                    else:
-                        result_summary = "no_result"
-
-                    user_message = (
-                        f"Question:\n{obs.question}\n\n"
-                        f"Last result: {result_summary}\n\n"
-                        "Next action?"
-                    )
-                    continue
-
-                if answer:
-                    action = Action(action_type="answer", final_answer=answer)
-                    obs, reward, done, info = env.step(action)
-                    steps_taken = step
-                    rewards.append(float(reward.score))
-                    action_str = re.sub(r"\s+", " ", f"answer:{answer}").strip()
-                    log_step(step=step, action=action_str, reward=float(reward.score), done=done, error=None)
+            for step in range(1, MAX_STEPS + 1):
+                if obs.done:
                     break
 
-                # If parse failed, count as a step with 0 reward but keep going.
-                steps_taken = step
-                rewards.append(0.0)
-                log_step(step=step, action="parse_error", reward=0.0, done=False, error=None)
-                user_message = (
-                    f"Question:\n{obs.question}\n\n"
-                    "Your last response did not match the required format. "
-                    "Respond with exactly one ACTION block."
-                )
+                try:
+                    response = llm_next(client, MODEL_NAME, user_message)
+                    sql, answer = parse_action(response)
 
-            except Exception as exc:
-                # Log as a step error and continue (unless max steps).
-                steps_taken = step
-                rewards.append(0.0)
-                log_step(step=step, action="exception", reward=0.0, done=False, error=str(exc).replace("\n", " "))
+                    if sql:
+                        action = Action(action_type="query", sql=sql)
+                        obs, reward, done, info = env.step(action)
+                        steps_taken = step
+                        rewards.append(float(reward.score))
+                        action_str = re.sub(r"\s+", " ", f"query:{sql}").strip()
+                        log_step(step=step, action=action_str, reward=float(reward.score), done=done, error=None)
 
-        score = float(rewards[-1]) if rewards else 0.0
-        # Clamp to [0,1] per requirement.
-        score = min(max(score, 0.0), 1.0)
-        success = score >= SUCCESS_SCORE_THRESHOLD
+                        if obs.last_result and obs.last_result.success:
+                            preview = obs.last_result.rows[:2] if obs.last_result.rows else []
+                            result_summary = f"rows={obs.last_result.row_count} preview={preview}"
+                        elif obs.last_result:
+                            result_summary = f"query_error={obs.last_result.error}"
+                        else:
+                            result_summary = "no_result"
 
-    finally:
-        if hasattr(env, "close"):
-            try:
-                env.close()
-            except Exception:
-                pass
-        log_end(success=success, steps=steps_taken, score=score, rewards=rewards)
+                        user_message = (
+                            f"Question:\n{obs.question}\n\n"
+                            f"Last result: {result_summary}\n\n"
+                            "Next action?"
+                        )
+                        continue
+
+                    if answer:
+                        action = Action(action_type="answer", final_answer=answer)
+                        obs, reward, done, info = env.step(action)
+                        steps_taken = step
+                        rewards.append(float(reward.score))
+                        action_str = re.sub(r"\s+", " ", f"answer:{answer}").strip()
+                        log_step(step=step, action=action_str, reward=float(reward.score), done=done, error=None)
+                        break
+
+                    steps_taken = step
+                    rewards.append(0.0)
+                    log_step(step=step, action="parse_error", reward=0.0, done=False, error=None)
+                    user_message = (
+                        f"Question:\n{obs.question}\n\n"
+                        "Your last response did not match the required format. "
+                        "Respond with exactly one ACTION block."
+                    )
+
+                except Exception as exc:
+                    steps_taken = step
+                    rewards.append(0.0)
+                    log_step(step=step, action="exception", reward=0.0, done=False, error=str(exc).replace("\n", " "))
+
+            score = float(rewards[-1]) if rewards else 0.0
+            # Submission checker requires strict open interval (0,1).
+            score = min(max(score, EPS), 1.0 - EPS)
+            success = score >= SUCCESS_SCORE_THRESHOLD
+
+        finally:
+            log_end(success=success, steps=steps_taken, score=score, rewards=rewards)
+
+    if hasattr(env, "close"):
+        try:
+            env.close()
+        except Exception:
+            pass
 
 
 if __name__ == "__main__":
