@@ -1,4 +1,4 @@
--- data/schema.sql — Table definitions for the simulated e-commerce database (Person A)
+-- data/schema.sql — Table definitions for the simulated e-commerce database
 --
 -- Four tables modelling a small e-commerce company:
 --   customers, products, orders, order_items

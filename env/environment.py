@@ -1,5 +1,5 @@
 """
-env/environment.py — Core RL-style environment (Person A)
+env/environment.py — Core RL-style environment 
 
 Implements the standard reset / step / state interface for the OpenEnv
 SQL Analyst environment.  The environment is **synchronous** (no async)
@@ -19,7 +19,7 @@ from tasks.grader import BaseTask
 
 # ---------------------------------------------------------------------------
 # Task registry — maps task_id → module path + class name
-# New tasks can be registered here by Person B.
+# New tasks can be registered here.
 # ---------------------------------------------------------------------------
 _TASK_REGISTRY: dict[str, tuple[str, str]] = {
     "sales_summary": ("tasks.task_easy", "SalesSummaryTask"),

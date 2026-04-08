@@ -1,7 +1,7 @@
 """
-tasks/grader.py — Base task / grader interface (Person B owns task subclasses)
+tasks/grader.py — Base task / grader interface
 
-Person A provides this abstract base class so that the environment and
+This module provides this abstract base class so that the environment and
 reward modules can depend on a stable contract without importing concrete
 task implementations.
 """

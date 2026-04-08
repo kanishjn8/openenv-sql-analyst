@@ -1,5 +1,5 @@
 """
-tasks/task_medium.py — Medium task: Churn analysis (Person B)
+tasks/task_medium.py — Medium task: Churn analysis 
 
 Ground truth extracted from the actual database (analyst.db).
 """

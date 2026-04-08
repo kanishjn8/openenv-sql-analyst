@@ -1,6 +1,5 @@
 """
-server.py — FastAPI HTTP wrapper for the SQL Analyst environment (Person A)
-
+server.py — FastAPI HTTP wrapper for the SQL Analyst environment 
 Exposes four endpoints:
     POST /reset   — start a new episode           → Observation
     POST /step    — submit an action               → {observation, reward, done, info}

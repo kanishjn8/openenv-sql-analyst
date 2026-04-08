@@ -1,5 +1,5 @@
 """
-tasks/task_hard.py — Hard task: Root cause analysis (Person B)
+tasks/task_hard.py — Hard task: Root cause analysis 
 
 Ground truth extracted from the actual database (analyst.db).
 """

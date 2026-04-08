@@ -9,6 +9,7 @@ dependencies = [
     "fastapi>=0.110",
     "uvicorn>=0.29",
     "pytest>=8.0",
+    "openenv-core>=0.2.0",
 ]
 
 [project.optional-dependencies]
@@ -18,5 +19,9 @@ dev = ["pytest>=8.0", "httpx>=0.27"]
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"
+
+[project.scripts]
+server = "server.app:main"
+
 [tool.hatch.build.targets.wheel]
-packages = ["env", "tasks", "baseline"]
+packages = ["env", "tasks", "baseline", "server"]

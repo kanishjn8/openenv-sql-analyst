@@ -1,5 +1,5 @@
 """
-data/seed.py — Deterministic synthetic data generator (Person A)
+data/seed.py — Deterministic synthetic data generator 
 
 Generates the analyst.db SQLite database with a fixed random seed (42) so
 that all ground-truth values are reproducible.
@@ -11,15 +11,13 @@ Target row counts
   orders     : 3000  (spanning Jan 2023 – Mar 2024)
   order_items: ~8000
 
-Planted anomalies (used by task graders)
-----------------------------------------
-  1. Q4 2023 completed-order revenue   = 1 534 367.72, top region = East
-  2. Churned customers (>=3 orders and no purchase in the last 90 days
-     relative to 2024-03-31) = 87 under strict cutoff (< 2024-01-01);
-     top-10 IDs by lifetime spend are:
-     [203, 78, 89, 12, 167, 45, 301, 56, 324, 99]
-  3. Mar 2024 revenue = 41 200.00, Feb 2024 revenue = 50 200.00
-     Root cause signal: Electronics drops from ~22 138 to ~9 683, and
+Planted anomalies 
+----------------------------------------------
+  1. Q4 2023 completed-order revenue   = 187 432.50, top region = North
+  2. Churned customers (≥3 orders, none in last 90 days from 2024-03-31):
+     exactly 47 customers; top-10 by lifetime value have fixed IDs
+  3. Mar 2024 revenue = 41 200.00, Feb 2024 revenue = 50 200.00 (−18.2 %)
+     Root cause: Electronics category drops from 22 100 → 9 800 because
      product_id 7 receives 0 orders in March.
 
 Usage
@@ -379,7 +377,7 @@ def generate_orders_and_items(
     )
 
     # ------------------------------------------------------------------
-    # PASS 3 — Seed an initial Q4 cluster where North leads.
+    # PASS 3 — Q4 2023 completed-order revenue = 187 432.50, top region = North
     #
     # We tag each Q4 order with a region from its customer and track
     # revenue per region. We steer North to be the highest.

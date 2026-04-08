@@ -1,5 +1,5 @@
 """
-env/models.py — Pydantic v2 data models (Person A)
+env/models.py — Pydantic v2 data models 
 
 Defines the contracts between the environment and any agent or evaluation
 framework.  Every piece of data that crosses the environment boundary is

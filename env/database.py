@@ -1,5 +1,5 @@
 """
-env/database.py — SQLite query runner (Person A)
+env/database.py — SQLite query runner 
 
 Provides a thin, safe wrapper around the sqlite3 standard library module.
 All destructive SQL is blocked. All exceptions are caught and returned as

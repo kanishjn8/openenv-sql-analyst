@@ -1,4 +1,4 @@
-# Dockerfile — Container definition for the SQL Analyst environment (Person A)
+# Dockerfile — Container definition for the SQL Analyst environment 
 #
 # Builds a slim Python 3.11 image, installs dependencies, seeds the
 # database, and starts the FastAPI server on port 7860 (HF Spaces default).
